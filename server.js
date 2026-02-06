@@ -91,9 +91,9 @@ app.post('/api/bills', async (req, res) => {
 // Get recent bills
 app.get('/api/bills', async (req, res) => {
   try {
-    const bills = await Bill.findAll({ 
+    const bills = await Bill.findAll({
       order: [['createdAt', 'DESC']],
-      limit: 20 
+      limit: 20
     });
     res.json(bills);
   } catch (error) {
@@ -105,8 +105,8 @@ app.get('/api/bills', async (req, res) => {
 // When running in Docker, we copy 'dist' and set NODE_ENV=production
 if (process.env.NODE_ENV === 'production' || process.env.SERVE_STATIC) {
   app.use(express.static(path.join(__dirname, 'dist')));
-  
-  app.get('*', (req, res) => {
+
+  app.get(/.*/, (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
   });
 }
