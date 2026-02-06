@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  app:
+    container_name: splitbill-app
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgres://postgres:password@db:5432/splitbill_db
+    depends_on:
+      db:
+        condition: service_started
+    restart: always
+    networks:
+      - splitbill-network
+
+  db:
+    container_name: splitbill-db
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: splitbill_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+    networks:
+      - splitbill-network
+
+volumes:
+  postgres_data:
+
+
+networks:
+  splitbill-network:
+    driver: bridge

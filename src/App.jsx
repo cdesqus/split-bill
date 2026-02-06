@@ -1,5 +1,5 @@
 import React, { useState, useRef, Component } from 'react';
-import { Camera, Plus, Trash2, Check, User, Loader2, Share2, ArrowRight, Sparkles, AlertCircle, Edit2, X, ArrowLeft, Download } from 'lucide-react';
+import { Camera, Plus, Trash2, Check, User, Loader2, Share2, ArrowRight, Sparkles, AlertCircle, Edit2, X, ArrowLeft, Download, Save } from 'lucide-react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -482,6 +482,37 @@ export default function App() {
         doc.save("split-bill-result.pdf");
     };
 
+    // --- Logic: Save Bill ---
+
+    const saveBill = async () => {
+        try {
+            const { totalSubtotal } = calculateResults();
+            const grandTotal = totalSubtotal + tax + serviceCharge - discount;
+
+            const payload = {
+                items,
+                users,
+                tax,
+                serviceCharge,
+                discount,
+                total: grandTotal
+            };
+
+            const response = await fetch('/api/bills', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) throw new Error('Failed to save (Backend might not be running)');
+
+            alert('Bill saved successfully!');
+        } catch (err) {
+            console.error(err);
+            alert('Failed to save bill. Make sure the backend server is running.\n\n' + err.message);
+        }
+    };
+
     // --- Render Steps ---
 
     const renderUpload = () => (
@@ -761,6 +792,9 @@ export default function App() {
                     <div className="flex gap-3">
                         <Button variant="secondary" onClick={() => setStep('upload')} className="flex-1">
                             New Scan
+                        </Button>
+                        <Button variant="outline" onClick={saveBill} className="flex-1" icon={Save}>
+                            Save
                         </Button>
                         <Button variant="primary" className="flex-1" icon={Share2}>
                             Share
