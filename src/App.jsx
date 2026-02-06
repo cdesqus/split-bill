@@ -1,11 +1,11 @@
 import React, { useState, useRef, Component } from 'react';
-import { Camera, Plus, Trash2, Check, User, Loader2, Share2, ArrowRight, Sparkles, AlertCircle, Edit2, X, ArrowLeft, Download, Save } from 'lucide-react';
+import { Camera, Plus, Trash2, Check, User, Loader2, Share2, ArrowRight, Sparkles, AlertCircle, Edit2, X, ArrowLeft, Download, Save, Image } from 'lucide-react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 // --- Configuration ---
-const apiKey = "AIzaSyAZg0jcZNmzlX3wKyc8FQXvJDgyRowdOGI";
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
 
 // --- Utilities ---
 const formatCurrency = (amount) => {
@@ -138,6 +138,7 @@ export default function App() {
     const [nameInput, setNameInput] = useState(''); // Moved state here to fix Hook violation
     const [isEditing, setIsEditing] = useState(false);
     const fileInputRef = useRef(null);
+    const cameraInputRef = useRef(null);
 
     // --- Logic: AI Processing ---
 
@@ -542,6 +543,7 @@ export default function App() {
                 </div>
             ) : (
                 <div className="w-full max-w-xs space-y-4">
+                    {/* Hidden Inputs */}
                     <input
                         type="file"
                         accept="image/*"
@@ -549,17 +551,39 @@ export default function App() {
                         ref={fileInputRef}
                         onChange={handleFileUpload}
                     />
-                    <Button
-                        onClick={() => fileInputRef.current.click()}
-                        fullWidth
-                        icon={Camera}
-                    >
-                        Scan Receipt
-                    </Button>
+                    <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        ref={cameraInputRef}
+                        onChange={handleFileUpload}
+                    />
+
+                    {/* Buttons */}
+                    <div className="grid grid-cols-2 gap-3">
+                        <Button
+                            onClick={() => cameraInputRef.current.click()}
+                            className="flex-1"
+                            icon={Camera}
+                        >
+                            Camera
+                        </Button>
+                        <Button
+                            onClick={() => fileInputRef.current.click()}
+                            variant="secondary"
+                            className="flex-1"
+                            icon={Image}
+                        >
+                            Gallery
+                        </Button>
+                    </div>
+
                     <p className="text-xs text-slate-400">Supported formats: JPG, PNG</p>
                 </div>
-            )}
-        </div>
+            )
+            }
+        </div >
     );
 
     const renderUsers = () => {

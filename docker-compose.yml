@@ -1,7 +1,10 @@
 services:
   app:
     container_name: splitbill-app
-    build: .
+    build:
+      context: .
+      args:
+        - VITE_GEMINI_API_KEY=${VITE_GEMINI_API_KEY}
     ports:
       - "3010:3000"
     environment:
