@@ -163,7 +163,7 @@ export default function App() {
 
                 try {
                     const genAI = new GoogleGenerativeAI(apiKey);
-                    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-09-2025" });
+                    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
                     const prompt = `
             Analyze this receipt image. Extract items, prices, quantities, tax, service charge, and discounts.
