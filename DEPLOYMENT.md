@@ -25,7 +25,7 @@ To deploy this application to production using Docker, follow these steps:
    Paste the following content (replace `YOUR_ACTUAL_KEY_HERE` with your real key):
    ```env
    # API Keys
-   VITE_GEMINI_API_KEY=AIzaSyAZg0jcZNmzlX3wKyc8FQXvJDgyRowdOGI
+   VITE_GEMINI_API_KEY=YOUR_ACTUAL_API_KEY
 
    # Database Configuration
    # In production docker-compose, the host is 'db', user/pass matches docker-compose.yml
