@@ -134,6 +134,8 @@ export default function App() {
     const [tax, setTax] = useState(0);
     const [serviceCharge, setServiceCharge] = useState(0);
     const [discount, setDiscount] = useState(0);
+    const [deliveryFee, setDeliveryFee] = useState(0);
+    const [billTitle, setBillTitle] = useState('Split Bill');
     const [error, setError] = useState(null);
     const [nameInput, setNameInput] = useState(''); // Moved state here to fix Hook violation
     const [isEditing, setIsEditing] = useState(false);
@@ -166,15 +168,17 @@ export default function App() {
                     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
                     const prompt = `
-            Analyze this receipt image. Extract items, prices, quantities, tax, service charge, and discounts.
+            Analyze this receipt image. Extract merchant/restaurant name, items, prices, quantities, tax, service charge, discounts, and delivery fee.
             Return ONLY a valid JSON object with this structure:
             {
+                "restaurantName": "Restaurant Name",
                 "items": [
                     { "name": "Item Name", "price": 10000, "quantity": 1 }
                 ],
                 "tax": 0,
                 "serviceCharge": 0,
-                "discount": 0
+                "discount": 0,
+                "deliveryFee": 0
             }
             CRITICAL RULE: If an item has a quantity > 1 (e.g., "2x Nasi Goreng"), you MUST split it into individual entries in the "items" array (e.g., two separate "Nasi Goreng" objects with quantity 1).
             Ensure all prices are numbers (no currency symbols).
@@ -218,6 +222,8 @@ export default function App() {
                     setTax(data.tax || 0);
                     setServiceCharge(data.serviceCharge || 0);
                     setDiscount(data.discount || 0);
+                    setDeliveryFee(data.deliveryFee || 0);
+                    setBillTitle(data.restaurantName || 'Split Bill');
 
                     // Move to next step
                     setStep('users');
@@ -284,6 +290,7 @@ export default function App() {
             taxShare: 0,
             serviceShare: 0,
             discountShare: 0,
+            deliveryShare: 0,
             total: 0
         });
 
@@ -310,7 +317,8 @@ export default function App() {
             user.taxShare = tax * ratio;
             user.serviceShare = serviceCharge * ratio;
             user.discountShare = discount * ratio;
-            user.total = user.subtotal + user.taxShare + user.serviceShare - user.discountShare;
+            user.deliveryShare = deliveryFee * ratio;
+            user.total = user.subtotal + user.taxShare + user.serviceShare + user.deliveryShare - user.discountShare;
         });
 
         return { userTotals, totalSubtotal };
@@ -332,6 +340,16 @@ export default function App() {
                     <div className="p-4 space-y-6 overflow-y-auto">
                         {/* Global Values */}
                         <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-medium text-slate-700 mb-1">Bill Title / Restaurant</label>
+                                <input
+                                    type="text"
+                                    value={billTitle}
+                                    onChange={(e) => setBillTitle(e.target.value)}
+                                    className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold"
+                                />
+                            </div>
+
                             <h4 className="font-semibold text-sm text-slate-500 uppercase tracking-wider">Totals</h4>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
@@ -358,6 +376,15 @@ export default function App() {
                                         type="number"
                                         value={discount}
                                         onChange={(e) => setDiscount(Number(e.target.value))}
+                                        className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                                    />
+                                </div>
+                                <div className="col-span-2">
+                                    <label className="block text-xs font-medium text-slate-700 mb-1">Delivery Fee</label>
+                                    <input
+                                        type="number"
+                                        value={deliveryFee}
+                                        onChange={(e) => setDeliveryFee(Number(e.target.value))}
                                         className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                                     />
                                 </div>
@@ -410,77 +437,156 @@ export default function App() {
         const doc = new jsPDF();
         const { userTotals, totalSubtotal } = calculateResults();
 
-        // Title
-        doc.setFontSize(20);
-        doc.text("Bill Breakdown", 14, 22);
+        // --- AESTHETIC CONFIG ---
+        doc.setFont('courier');
+        const accentColor = [79, 70, 229]; // Indigo-600
+        const darkColor = [20, 20, 20]; // Almost Black
+
+        // Header
+        doc.setFontSize(24);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(...darkColor);
+        doc.text(billTitle.toUpperCase(), 14, 25);
+
         doc.setFontSize(10);
-        doc.text(new Date().toLocaleDateString(), 14, 28);
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(100);
+        doc.text(`DATE: ${new Date().toLocaleDateString().toUpperCase()}`, 14, 32);
+        doc.text(`ID: ${Date.now().toString(36).toUpperCase()}`, 14, 37);
 
-        // Grand Total
-        const grandTotal = totalSubtotal + tax + serviceCharge - discount;
+        // Decorative Line
+        doc.setLineWidth(0.5);
+        doc.setDrawColor(...darkColor);
+        doc.line(14, 45, 196, 45);
+        doc.setLineWidth(0.2);
+        doc.line(14, 47, 196, 47);
 
+        // Grand Total Box
+        const grandTotal = totalSubtotal + tax + serviceCharge + deliveryFee - discount;
+
+        doc.setFillColor(248, 250, 252); // Slate-50 background
+        doc.setDrawColor(226, 232, 240); // Slate-200 border
+        doc.rect(14, 55, 182, 40, 'FD');
+
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text("TOTAL AMOUNT", 24, 66);
+        doc.setFontSize(36);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(...accentColor);
+        doc.text(formatCurrency(grandTotal), 24, 80);
+        doc.setTextColor(...darkColor); // Reset
+
+        // Summary Table
         autoTable(doc, {
-            startY: 35,
-            head: [['Description', 'Amount']],
+            startY: 105,
+            head: [['ITEM', 'AMOUNT']],
             body: [
-                ['Subtotal', formatCurrency(totalSubtotal)],
-                ['Tax', formatCurrency(tax)],
-                ['Service Charge', formatCurrency(serviceCharge)],
-                ['Discount', `-${formatCurrency(discount)}`],
-                ['GRAND TOTAL', formatCurrency(grandTotal)]
+                ['SUBTOTAL', formatCurrency(totalSubtotal)],
+                ['TAX', formatCurrency(tax)],
+                ['SERVICE', formatCurrency(serviceCharge)],
+                ['DELIVERY', formatCurrency(deliveryFee)],
+                ['DISCOUNT', `-${formatCurrency(discount)}`],
             ],
             theme: 'plain',
-            styles: { fontSize: 10, cellPadding: 2 },
-            columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } },
+            styles: {
+                font: 'courier',
+                fontSize: 10,
+                cellPadding: 3,
+                textColor: darkColor,
+                lineColor: [230, 230, 230],
+                lineWidth: { bottom: 0.1 }
+            },
+            headStyles: {
+                fillColor: darkColor,
+                textColor: [255, 255, 255],
+                fontStyle: 'bold',
+                halign: 'left'
+            },
+            columnStyles: {
+                0: { fontStyle: 'bold' },
+                1: { halign: 'right' }
+            },
         });
 
-        let finalY = doc.lastAutoTable.finalY + 10;
+        let finalY = doc.lastAutoTable.finalY + 15;
 
-        // Per User Breakdown
+        // User Splits Title
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.text("WHO OWES WHAT?", 14, finalY);
+        doc.setLineWidth(1.5);
+        doc.setDrawColor(...accentColor);
+        doc.line(14, finalY + 3, 65, finalY + 3);
+
+        finalY += 12;
+
+        // User Loop
         users.forEach(user => {
             const data = userTotals[user.id];
             if (data.total === 0) return;
 
-            const userItems = items.filter(item => item.assignedTo.includes(user.id));
-
-            doc.setFontSize(12);
-            doc.setFont(undefined, 'bold');
-            doc.text(`${user.name} - ${formatCurrency(data.total)}`, 14, finalY);
-            doc.setFont(undefined, 'normal');
-
-            const tableBody = userItems.map(item => [
-                item.name + (item.assignedTo.length > 1 ? ` (Split ${item.assignedTo.length})` : ''),
-                formatCurrency(item.price / item.assignedTo.length)
-            ]);
-
-            // Add summary rows for user
-            if (data.taxShare > 0 || data.serviceShare > 0) {
-                tableBody.push(['Tax & Service', formatCurrency(data.taxShare + data.serviceShare)]);
-            }
-            if (data.discountShare > 0) {
-                tableBody.push(['Discount', `-${formatCurrency(data.discountShare)}`]);
-            }
-
-            autoTable(doc, {
-                startY: finalY + 2,
-                body: tableBody,
-                theme: 'grid',
-                headStyles: { fillColor: [79, 70, 229] }, // Indigo-600
-                styles: { fontSize: 9, cellPadding: 2 },
-                columnStyles: { 1: { halign: 'right' } },
-                margin: { left: 14 }
-            });
-
-            finalY = doc.lastAutoTable.finalY + 10;
-
-            // Add new page if needed
-            if (finalY > 250) {
+            // Page Break Check
+            if (finalY > 260) {
                 doc.addPage();
                 finalY = 20;
             }
+
+            // User Header Block
+            doc.setFillColor(...accentColor);
+            doc.rect(14, finalY, 182, 9, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(11);
+            doc.setFont(undefined, 'bold');
+            doc.text(`${user.name.toUpperCase()}`, 18, finalY + 6);
+            doc.text(`${formatCurrency(data.total)}`, 192, finalY + 6, { align: 'right' });
+            doc.setTextColor(...darkColor); // Reset
+
+            const userItems = items.filter(item => item.assignedTo.includes(user.id));
+
+            const tableBody = userItems.map(item => [
+                item.name + (item.assignedTo.length > 1 ? ` (1/${item.assignedTo.length})` : ''),
+                formatCurrency(item.price / item.assignedTo.length)
+            ]);
+
+            if (data.taxShare > 0 || data.serviceShare > 0 || data.deliveryShare > 0) {
+                tableBody.push(['FEES + DLV', formatCurrency(data.taxShare + data.serviceShare + data.deliveryShare)]);
+            }
+            if (data.discountShare > 0) {
+                tableBody.push(['DISCOUNT', `-${formatCurrency(data.discountShare)}`]);
+            }
+
+            autoTable(doc, {
+                startY: finalY + 9,
+                body: tableBody,
+                theme: 'plain',
+                styles: {
+                    font: 'courier',
+                    fontSize: 10,
+                    cellPadding: 2,
+                    lineColor: [240, 240, 240],
+                    lineWidth: { bottom: 0.1 }
+                },
+                columnStyles: {
+                    1: { halign: 'right' }
+                },
+                margin: { left: 14 }
+            });
+
+            finalY = doc.lastAutoTable.finalY + 8;
         });
 
-        doc.save("split-bill-result.pdf");
+        // Footer
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setTextColor(150);
+            doc.text(`GENERATED BY SMART SPLIT BILL // PAGE ${i} OF ${pageCount}`, 105, 290, { align: 'center' });
+        }
+
+        const safeFilename = billTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        doc.save(`${safeFilename}.pdf`);
     };
 
     // --- Logic: Save Bill ---
@@ -488,13 +594,14 @@ export default function App() {
     const saveBill = async () => {
         try {
             const { totalSubtotal } = calculateResults();
-            const grandTotal = totalSubtotal + tax + serviceCharge - discount;
+            const grandTotal = totalSubtotal + tax + serviceCharge + deliveryFee - discount;
 
             const payload = {
                 items,
                 users,
                 tax,
                 serviceCharge,
+                deliveryFee,
                 discount,
                 total: grandTotal
             };
@@ -716,7 +823,7 @@ export default function App() {
                         <ArrowLeft size={24} />
                     </button>
                     <div className="text-center">
-                        <h2 className="text-2xl font-bold text-slate-900">Bill Breakdown</h2>
+                        <h2 className="text-2xl font-bold text-slate-900">{billTitle}</h2>
                         <p className="text-slate-500">Here's what everyone owes.</p>
                     </div>
                 </div>
@@ -744,6 +851,10 @@ export default function App() {
                         <div>
                             <span className="block text-indigo-200 text-xs">Service</span>
                             <span className="font-semibold">{formatCurrency(serviceCharge)}</span>
+                        </div>
+                        <div>
+                            <span className="block text-indigo-200 text-xs">Delivery</span>
+                            <span className="font-semibold">{formatCurrency(deliveryFee)}</span>
                         </div>
                     </div>
                 </Card>
@@ -791,10 +902,10 @@ export default function App() {
                                         <span>Subtotal</span>
                                         <span>{formatCurrency(data.subtotal)}</span>
                                     </div>
-                                    {(data.taxShare > 0 || data.serviceShare > 0) && (
+                                    {(data.taxShare > 0 || data.serviceShare > 0 || data.deliveryShare > 0) && (
                                         <div className="flex justify-between text-xs">
-                                            <span>Tax & Service</span>
-                                            <span>+{formatCurrency(data.taxShare + data.serviceShare)}</span>
+                                            <span>Tax, Service & Delivery</span>
+                                            <span>+{formatCurrency(data.taxShare + data.serviceShare + data.deliveryShare)}</span>
                                         </div>
                                     )}
                                     {data.discountShare > 0 && (
